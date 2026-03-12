@@ -64,6 +64,12 @@ DEFAULT_SETTINGS = {
     "sample_email_1": "",
     "sample_email_2": "",
     "sample_email_3": "",
+    "company_name": "Chick-fil-A Catering",
+    "company_location": "",
+    "rep_name": "",
+    "rep_title": "Catering Specialist",
+    "rep_email": "",
+    "rep_phone": "",
 }
 
 DECISION_MAKER_ROLES = {

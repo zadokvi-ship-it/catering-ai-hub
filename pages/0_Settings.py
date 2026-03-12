@@ -23,6 +23,23 @@ st.info("To apply the theme change: save below, then use the **⋮ menu → Sett
 
 st.markdown("---")
 
+# ── COMPANY & REP INFO ─────────────────────────────────────────────────────────
+
+st.subheader("🍗 Company & Rep Info")
+st.caption("Used in every generated email, phone script, and brief.")
+
+ci1, ci2 = st.columns(2)
+company_name = ci1.text_input("Company Name", value=settings.get("company_name", "Chick-fil-A Catering"))
+company_location = ci2.text_input("Location / Operator", value=settings.get("company_location", ""), placeholder="e.g. North San Antonio")
+
+ri1, ri2, ri3, ri4 = st.columns(4)
+rep_name = ri1.text_input("Your Name", value=settings.get("rep_name", ""))
+rep_title = ri2.text_input("Your Title", value=settings.get("rep_title", "Catering Specialist"))
+rep_email = ri3.text_input("Your Email", value=settings.get("rep_email", ""))
+rep_phone = ri4.text_input("Your Phone", value=settings.get("rep_phone", ""))
+
+st.markdown("---")
+
 # ── LEAD GENERATION DEFAULTS ───────────────────────────────────────────────────
 
 st.subheader("🔍 Lead Generation Defaults")
@@ -138,6 +155,12 @@ st.markdown("---")
 if st.button("💾 Save Settings", type="primary", use_container_width=True):
     new_settings = {
         "theme": theme_choice.lower(),
+        "company_name": company_name,
+        "company_location": company_location,
+        "rep_name": rep_name,
+        "rep_title": rep_title,
+        "rep_email": rep_email,
+        "rep_phone": rep_phone,
         "default_zip": default_zip,
         "default_radius": str(default_radius),
         "default_category": default_category,
