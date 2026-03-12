@@ -77,13 +77,13 @@ for i, row in filtered.iterrows():
                 "Assigned To",
                 assignee_options,
                 index=assignee_options.index(current_assignee) if current_assignee in assignee_options else 0,
-                key=f"assignee_{row['place_id']}",
             )
             new_followup = uc3.date_input(
                 "Next Follow-Up",
                 value=datetime.today() + timedelta(days=5),
+                key=f"followup_{row['place_id']}",
             )
-            new_notes = st.text_area("Notes", value=str(row["notes"]))
+            new_notes = st.text_area("Notes", value=str(row["notes"]), key=f"notes_{row['place_id']}")
             new_revenue = None
             if new_status == "Closed Won":
                 new_revenue = st.number_input("Revenue Amount ($)", min_value=0.0, step=100.0)

@@ -42,6 +42,13 @@ def _research_block(research: dict) -> str:
     return block
 
 
+def generate_email_draft(lead: dict, brand_voice: str = "", sample_emails: list = None) -> dict:
+    """Lightweight wrapper used by the CRM quick-draft button (no research)."""
+    result = generate_full_email(lead, research={}, brand_voice=brand_voice,
+                                 sample_emails=sample_emails)
+    return {"subject": result.get("subject", ""), "body": result.get("full_email", "")}
+
+
 def generate_full_email(lead: dict, research: dict = None, brand_voice: str = "",
                         sample_emails: list = None, rep_settings: dict = None) -> dict:
     research = research or {}
