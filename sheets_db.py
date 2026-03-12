@@ -2,8 +2,10 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 import streamlit as st
+from datetime import datetime
 from config import (SHEET_ID, LEADS_SHEET, EMAIL_QUEUE_SHEET, LEAD_COLUMNS,
-                    EMAIL_QUEUE_COLUMNS, SETTINGS_SHEET, TEAM_MEMBERS_SHEET, DEFAULT_SETTINGS)
+                    EMAIL_QUEUE_COLUMNS, SETTINGS_SHEET, TEAM_MEMBERS_SHEET,
+                    GENERATED_SHEET, DEFAULT_SETTINGS)
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -223,3 +225,70 @@ def save_team_members(members: list):
         if m.strip():
             ws.append_row([m.strip()])
     load_team_members.clear()
+
+
+# ── GENERATED CONTENT ──────────────────────────────────────────────────────────
+
+GENERATED_COLS = ["place_id", "research", "brief", "phone_script", "email", "last_updated"]
+
+
+def _get_generated_ws():
+    spreadsheet = get_spreadsheet()
+    try:
+        return spreadsheet.worksheet(GENERATED_SHEET)
+    except gspread.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=GENERATED_SHEET, rows=500, cols=len(GENERATED_COLS))
+        ws.append_row(GENERATED_COLS)
+        return ws
+
+
+def load_generated(place_id: str) -> dict:
+    """Load all saved generated content for a lead. Returns dict with keys: research, brief, phone_script, email."""
+    ws = _get_generated_ws()
+    records = ws.get_all_records()
+    for row in records:
+        if str(row.get("place_id", "")) == str(place_id):
+            result = {}
+            import json
+            for key in ["research", "brief", "phone_script", "email"]:
+                val = row.get(key, "")
+                if val:
+                    try:
+                        result[key] = json.loads(val)
+                    except Exception:
+                        result[key] = val
+            return result
+    return {}
+
+
+def save_generated(place_id: str, key: str, value):
+    """Save or update a single generated content field for a lead."""
+    import json
+    ws = _get_generated_ws()
+    headers = ws.row_values(1)
+    all_values = ws.get_all_values()
+
+    # Serialize if needed
+    if isinstance(value, (dict, list)):
+        stored = json.dumps(value)
+    else:
+        stored = str(value)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # Check if row already exists for this place_id
+    pid_col = headers.index("place_id")
+    for i, row in enumerate(all_values[1:], start=2):
+        if len(row) > pid_col and row[pid_col] == str(place_id):
+            # Update existing row
+            if key in headers:
+                ws.update_cell(i, headers.index(key) + 1, stored)
+                ws.update_cell(i, headers.index("last_updated") + 1, timestamp)
+            return
+
+    # New row
+    new_row = {col: "" for col in GENERATED_COLS}
+    new_row["place_id"] = str(place_id)
+    new_row[key] = stored
+    new_row["last_updated"] = timestamp
+    ws.append_row([new_row[col] for col in GENERATED_COLS])

@@ -51,6 +51,7 @@ CATEGORY_OPTIONS = ["school", "hospital", "church", "corporate office"]
 
 SETTINGS_SHEET = "Settings"
 TEAM_MEMBERS_SHEET = "TeamMembers"
+GENERATED_SHEET = "Generated"
 
 DEFAULT_SETTINGS = {
     "default_zip": "",

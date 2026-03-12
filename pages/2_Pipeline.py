@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from sheets_db import (load_leads, update_lead, delete_lead,
-                        append_email_draft, load_team_members, load_settings)
+                        append_email_draft, load_team_members, load_settings,
+                        load_generated, save_generated)
 from lead_engine import calculate_priority
 from research_engine import research_lead
 from prep_engine import generate_prep_brief, generate_phone_script, generate_full_email
@@ -196,34 +197,56 @@ with tab_update:
 # ── TAB: GENERATE ─────────────────────────────────────────────────────────────
 
 with tab_generate:
-    research_key = f"research_{lead['place_id']}"
-    brief_key = f"brief_{lead['place_id']}"
-    phone_key = f"phone_{lead['place_id']}"
-    email_key = f"email_gen_{lead['place_id']}"
+    pid = lead["place_id"]
+    research_key = f"research_{pid}"
+    brief_key    = f"brief_{pid}"
+    phone_key    = f"phone_{pid}"
+    email_key    = f"email_gen_{pid}"
 
-    # Step 1: Research
-    st.markdown("### Step 1 — Research")
-    st.caption("Scrapes their website and extracts decision maker names, upcoming events, and the best angle.")
-
-    if st.button("🔬 Research This Organization", use_container_width=True,
-                 key=f"res_{lead['place_id']}"):
-        with st.spinner(f"Researching {lead['organization_name']}..."):
-            try:
-                st.session_state[research_key] = research_lead(lead)
-            except Exception as e:
-                st.error(f"Research failed: {e}")
+    # Load saved content from Sheets into session_state if not already there
+    if f"loaded_generated_{pid}" not in st.session_state:
+        with st.spinner("Loading saved content..."):
+            saved = load_generated(pid)
+        if saved.get("research"):
+            st.session_state[research_key] = saved["research"]
+        if saved.get("brief"):
+            st.session_state[brief_key] = saved["brief"]
+        if saved.get("phone_script"):
+            st.session_state[phone_key] = saved["phone_script"]
+        if saved.get("email"):
+            st.session_state[email_key] = saved["email"]
+        st.session_state[f"loaded_generated_{pid}"] = True
 
     research = st.session_state.get(research_key, {})
+
+    # ── RESEARCH ──────────────────────────────────────────────────────────────
+    st.markdown("### Step 1 — Research")
+
+    ra, rb = st.columns([2, 1])
+    do_research = ra.button("🔬 Research This Organization", use_container_width=True,
+                            key=f"res_btn_{pid}")
+    if research:
+        rb.caption("✅ Research saved — regenerate anytime")
+
+    if do_research:
+        with st.spinner(f"Researching {lead['organization_name']}..."):
+            try:
+                result = research_lead(lead)
+                st.session_state[research_key] = result
+                save_generated(pid, "research", result)
+                research = result
+            except Exception as e:
+                st.error(f"Research failed: {e}")
 
     if research:
         r1, r2 = st.columns(2)
         with r1:
-            st.markdown(f"**Decision Maker:** {research.get('decision_maker_name', '—')}")
-            if research.get('decision_maker_email'):
+            st.markdown(f"**Decision Maker:** {research.get('decision_maker_name','—')}")
+            if research.get("decision_maker_email"):
                 st.markdown(f"**Email Found:** {research.get('decision_maker_email')}")
-            st.markdown(f"**Best Angle:** {research.get('catering_angle', '—')}")
-            st.markdown(f"**Hook:** {research.get('personalization_hook', '—')}")
-            st.markdown(f"**Best Time to Contact:** {research.get('best_contact_timing', '—')}")
+            st.markdown(f"**Best Angle:** {research.get('catering_angle','—')}")
+            st.markdown(f"**Hook:** {research.get('personalization_hook','—')}")
+            st.markdown(f"**Best Time to Contact:** {research.get('best_contact_timing','—')}")
         with r2:
             if research.get("upcoming_events"):
                 st.markdown("**Upcoming Events:**")
@@ -234,78 +257,91 @@ with tab_generate:
                 for note in research["org_notes"]:
                     st.markdown(f"- {note}")
     else:
-        st.caption("Optional but makes everything below much more specific.")
+        st.caption("Optional but makes everything below much more specific and personalized.")
 
     st.markdown("---")
     st.markdown("### Step 2 — Generate")
 
-    g1, g2, g3 = st.columns(3)
-    gen_brief = g1.button("📋 Prep Brief", use_container_width=True, key=f"brief_btn_{lead['place_id']}")
-    gen_phone = g2.button("📞 Phone Script", use_container_width=True, key=f"phone_btn_{lead['place_id']}")
-    gen_email = g3.button("✉️ Full Email", use_container_width=True, key=f"email_btn_{lead['place_id']}")
+    # Generate buttons — each has a "Regenerate" variant shown when content exists
+    def gen_button_row(label, session_key, btn_key):
+        has_content = session_key in st.session_state
+        col_a, col_b = st.columns([3, 1])
+        clicked = col_a.button(label, use_container_width=True, key=btn_key)
+        regen = col_b.button("🔄 Regenerate", use_container_width=True,
+                             key=f"regen_{btn_key}", disabled=not has_content)
+        return clicked or regen
 
-    if gen_brief:
+    run_brief = gen_button_row("📋 Prep Brief", brief_key, f"brief_btn_{pid}")
+    run_phone = gen_button_row("📞 Phone Script", phone_key, f"phone_btn_{pid}")
+    run_email = gen_button_row("✉️ Full Email", email_key, f"email_btn_{pid}")
+
+    if run_brief:
         with st.spinner("Writing prep brief..."):
             try:
-                st.session_state[brief_key] = generate_prep_brief(
-                    lead, research=research, brand_voice=brand_voice,
-                    sample_emails=sample_emails, rep_settings=rep_settings)
+                result = generate_prep_brief(lead, research=research, brand_voice=brand_voice,
+                                             sample_emails=sample_emails, rep_settings=rep_settings)
+                st.session_state[brief_key] = result
+                save_generated(pid, "brief", result)
             except Exception as e:
                 st.error(f"Failed: {e}")
 
-    if gen_phone:
+    if run_phone:
         with st.spinner("Writing phone script..."):
             try:
-                st.session_state[phone_key] = generate_phone_script(
-                    lead, research=research, brand_voice=brand_voice, rep_settings=rep_settings)
+                result = generate_phone_script(lead, research=research, brand_voice=brand_voice,
+                                               rep_settings=rep_settings)
+                st.session_state[phone_key] = result
+                save_generated(pid, "phone_script", result)
             except Exception as e:
                 st.error(f"Failed: {e}")
 
-    if gen_email:
+    if run_email:
         with st.spinner("Writing email..."):
             try:
-                st.session_state[email_key] = generate_full_email(
-                    lead, research=research, brand_voice=brand_voice,
-                    sample_emails=sample_emails, rep_settings=rep_settings)
+                result = generate_full_email(lead, research=research, brand_voice=brand_voice,
+                                             sample_emails=sample_emails, rep_settings=rep_settings)
+                st.session_state[email_key] = result
+                save_generated(pid, "email", result)
             except Exception as e:
                 st.error(f"Failed: {e}")
 
-    # Show outputs full-width
+    # ── OUTPUTS ───────────────────────────────────────────────────────────────
+
     if brief_key in st.session_state:
         st.markdown("---")
         st.markdown("### 📋 Prep Brief")
         st.markdown(st.session_state[brief_key])
-        st.download_button("📥 Download", data=st.session_state[brief_key],
+        st.download_button("📥 Download Brief", data=st.session_state[brief_key],
                            file_name=f"brief_{lead['organization_name'].replace(' ','_')}.txt",
-                           mime="text/plain", key=f"dl_brief_{lead['place_id']}")
+                           mime="text/plain", key=f"dl_brief_{pid}")
 
     if phone_key in st.session_state:
         st.markdown("---")
         st.markdown("### 📞 Phone Script")
         st.markdown(st.session_state[phone_key])
-        st.download_button("📥 Download", data=st.session_state[phone_key],
+        st.download_button("📥 Download Script", data=st.session_state[phone_key],
                            file_name=f"script_{lead['organization_name'].replace(' ','_')}.txt",
-                           mime="text/plain", key=f"dl_phone_{lead['place_id']}")
+                           mime="text/plain", key=f"dl_phone_{pid}")
 
     if email_key in st.session_state:
         st.markdown("---")
         em = st.session_state[email_key]
         st.markdown("### ✉️ Full Email")
         st.markdown(f"**To:** {em.get('to_name','—')}  ·  **Subject:** {em.get('subject','')}")
-        st.text_area("Ready to copy & send:", value=em.get("full_email", ""),
-                     height=320, key=f"email_ta_{lead['place_id']}")
+        st.text_area("Ready to copy & send:", value=em.get("full_email",""),
+                     height=320, key=f"email_ta_{pid}")
         ea, eb = st.columns(2)
-        ea.download_button("📥 Download", data=em.get("full_email", ""),
+        ea.download_button("📥 Download Email", data=em.get("full_email",""),
                            file_name=f"email_{lead['organization_name'].replace(' ','_')}.txt",
-                           mime="text/plain", key=f"dl_email_{lead['place_id']}")
-        if eb.button("➕ Send to Email Queue", key=f"queue_{lead['place_id']}"):
+                           mime="text/plain", key=f"dl_email_{pid}")
+        if eb.button("➕ Send to Email Queue", key=f"queue_{pid}"):
             append_email_draft({
-                "place_id": lead["place_id"],
+                "place_id": pid,
                 "organization_name": lead["organization_name"],
-                "to_name": em.get("to_name", ""),
-                "to_email": em.get("to_email", ""),
-                "subject": em.get("subject", ""),
-                "body": em.get("full_email", ""),
+                "to_name": em.get("to_name",""),
+                "to_email": em.get("to_email",""),
+                "subject": em.get("subject",""),
+                "body": em.get("full_email",""),
                 "status": "Pending Review",
                 "drafted_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "reviewed_by": "", "reviewed_at": "", "notes": "",
