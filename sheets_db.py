@@ -152,6 +152,13 @@ def update_email_status(place_id, updates: dict):
     load_email_queue.clear()
 
 
+def delete_email_draft(row_index_in_sheet: int):
+    """row_index_in_sheet is 1-based, accounting for header row."""
+    _, email_ws = get_worksheets()
+    email_ws.delete_rows(row_index_in_sheet)
+    load_email_queue.clear()
+
+
 # ── SETTINGS ───────────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=60)
