@@ -2,7 +2,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 import streamlit as st
-from config import SHEET_ID, LEADS_SHEET, EMAIL_QUEUE_SHEET, LEAD_COLUMNS, EMAIL_QUEUE_COLUMNS
+from config import (SHEET_ID, LEADS_SHEET, EMAIL_QUEUE_SHEET, LEAD_COLUMNS,
+                    EMAIL_QUEUE_COLUMNS, SETTINGS_SHEET, TEAM_MEMBERS_SHEET, DEFAULT_SETTINGS)
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -37,9 +38,13 @@ def get_or_create_worksheet(spreadsheet, name, cols):
     return ws
 
 
-def get_worksheets():
+def get_spreadsheet():
     client = get_client()
-    spreadsheet = client.open_by_key(SHEET_ID)
+    return client.open_by_key(SHEET_ID)
+
+
+def get_worksheets():
+    spreadsheet = get_spreadsheet()
     leads_ws = get_or_create_worksheet(spreadsheet, LEADS_SHEET, LEAD_COLUMNS)
     email_ws = get_or_create_worksheet(spreadsheet, EMAIL_QUEUE_SHEET, EMAIL_QUEUE_COLUMNS)
     return leads_ws, email_ws
@@ -142,3 +147,69 @@ def update_email_status(place_id, updates: dict):
             break
 
     load_email_queue.clear()
+
+
+# ── SETTINGS ───────────────────────────────────────────────────────────────────
+
+@st.cache_data(ttl=60)
+def load_settings():
+    spreadsheet = get_spreadsheet()
+    try:
+        ws = spreadsheet.worksheet(SETTINGS_SHEET)
+        records = ws.get_all_records()
+        settings = dict(DEFAULT_SETTINGS)
+        for row in records:
+            if row.get("key") and row.get("value") is not None:
+                settings[row["key"]] = str(row["value"])
+        return settings
+    except gspread.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=SETTINGS_SHEET, rows=50, cols=2)
+        ws.append_row(["key", "value"])
+        for k, v in DEFAULT_SETTINGS.items():
+            ws.append_row([k, v])
+        return dict(DEFAULT_SETTINGS)
+
+
+def save_settings(settings: dict):
+    spreadsheet = get_spreadsheet()
+    try:
+        ws = spreadsheet.worksheet(SETTINGS_SHEET)
+    except gspread.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=SETTINGS_SHEET, rows=50, cols=2)
+        ws.append_row(["key", "value"])
+
+    ws.clear()
+    ws.append_row(["key", "value"])
+    for k, v in settings.items():
+        ws.append_row([k, str(v)])
+    load_settings.clear()
+
+
+# ── TEAM MEMBERS ───────────────────────────────────────────────────────────────
+
+@st.cache_data(ttl=60)
+def load_team_members():
+    spreadsheet = get_spreadsheet()
+    try:
+        ws = spreadsheet.worksheet(TEAM_MEMBERS_SHEET)
+        records = ws.get_all_records()
+        return [r["name"] for r in records if r.get("name")]
+    except gspread.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=TEAM_MEMBERS_SHEET, rows=50, cols=1)
+        ws.append_row(["name"])
+        return []
+
+
+def save_team_members(members: list):
+    spreadsheet = get_spreadsheet()
+    try:
+        ws = spreadsheet.worksheet(TEAM_MEMBERS_SHEET)
+    except gspread.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=TEAM_MEMBERS_SHEET, rows=50, cols=1)
+
+    ws.clear()
+    ws.append_row(["name"])
+    for m in members:
+        if m.strip():
+            ws.append_row([m.strip()])
+    load_team_members.clear()

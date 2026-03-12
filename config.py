@@ -49,6 +49,19 @@ EMAIL_QUEUE_COLUMNS = [
 
 CATEGORY_OPTIONS = ["school", "hospital", "church", "corporate office"]
 
+SETTINGS_SHEET = "Settings"
+TEAM_MEMBERS_SHEET = "TeamMembers"
+
+DEFAULT_SETTINGS = {
+    "default_zip": "",
+    "default_radius": "10",
+    "default_category": "school",
+    "pipeline_small": "500",
+    "pipeline_medium": "1000",
+    "pipeline_large": "2000",
+    "theme": "dark",
+}
+
 DECISION_MAKER_ROLES = {
     "school": "Principal / Director of Operations",
     "hospital": "Director of Food Services / Facilities Manager",

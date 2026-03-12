@@ -1,19 +1,23 @@
 import streamlit as st
 from lead_engine import generate_leads
-from sheets_db import append_leads, load_leads
+from sheets_db import append_leads, load_leads, load_settings
 from config import CATEGORY_OPTIONS
 
 st.set_page_config(page_title="Lead Generation", layout="wide", page_icon="🔍")
 st.title("🔍 Lead Generation")
 st.caption("Pull real businesses from Google Places and add them to your pipeline.")
 
+settings = load_settings()
+
 # ── FORM ───────────────────────────────────────────────────────────────────────
 
 with st.form("lead_form"):
     col1, col2, col3 = st.columns(3)
-    zip_code = col1.text_input("ZIP Code", placeholder="e.g. 78201")
-    category = col2.selectbox("Category", CATEGORY_OPTIONS)
-    radius = col3.slider("Radius (miles)", min_value=5, max_value=30, value=10)
+    zip_code = col1.text_input("ZIP Code", placeholder="e.g. 78201", value=settings.get("default_zip", ""))
+    default_cat = settings.get("default_category", "school")
+    cat_index = CATEGORY_OPTIONS.index(default_cat) if default_cat in CATEGORY_OPTIONS else 0
+    category = col2.selectbox("Category", CATEGORY_OPTIONS, index=cat_index)
+    radius = col3.slider("Radius (miles)", min_value=5, max_value=30, value=int(settings.get("default_radius", 10)))
     submitted = st.form_submit_button("🔍 Generate Leads", use_container_width=True)
 
 if submitted:

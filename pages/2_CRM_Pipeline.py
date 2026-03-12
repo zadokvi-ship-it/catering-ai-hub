@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from sheets_db import load_leads, update_lead, append_email_draft, delete_lead
+from sheets_db import load_leads, update_lead, append_email_draft, delete_lead, load_team_members
 from prep_engine import generate_email_draft
 from config import PIPELINE_STATUSES
 
@@ -33,6 +33,7 @@ if "All" not in assignee_filter:
     filtered = filtered[filtered["assigned_to"].isin(assignee_filter)]
 
 filtered = filtered.sort_values("priority_score", ascending=False).reset_index(drop=True)
+team_members = load_team_members()
 
 st.markdown(f"Showing **{len(filtered)}** leads")
 st.markdown("---")
@@ -65,7 +66,16 @@ for i, row in filtered.iterrows():
                 PIPELINE_STATUSES,
                 index=PIPELINE_STATUSES.index(row["status"]) if row["status"] in PIPELINE_STATUSES else 0,
             )
-            new_assignee = uc2.text_input("Assigned To", value=str(row["assigned_to"]))
+            assignee_options = [""] + team_members if team_members else [""]
+            current_assignee = str(row["assigned_to"])
+            if current_assignee and current_assignee not in assignee_options:
+                assignee_options.append(current_assignee)
+            new_assignee = uc2.selectbox(
+                "Assigned To",
+                assignee_options,
+                index=assignee_options.index(current_assignee) if current_assignee in assignee_options else 0,
+                key=f"assignee_{row['place_id']}",
+            )
             new_followup = uc3.date_input(
                 "Next Follow-Up",
                 value=datetime.today() + timedelta(days=5),
