@@ -67,6 +67,45 @@ members_text = st.text_area(
 
 st.markdown("---")
 
+# ── BRAND VOICE & EMAIL TRAINING ───────────────────────────────────────────────
+
+st.subheader("✍️ Brand Voice & Email Training")
+st.caption("The AI will use these to write emails and phone scripts that sound like your team — not a robot.")
+
+brand_voice = st.text_area(
+    "Brand Voice Description",
+    value=settings.get("brand_voice", ""),
+    height=120,
+    placeholder="""Describe how your team communicates. Examples:
+- We're direct, confident, and get to the point fast.
+- We never use corporate jargon. We write like we talk.
+- Our tone is friendly but professional — like a trusted advisor, not a vendor.
+- We always lead with their problem, not our product.""",
+)
+
+st.caption("Paste up to 3 real emails your team has sent. The AI will match their style exactly.")
+
+sample_email_1 = st.text_area(
+    "Sample Email #1",
+    value=settings.get("sample_email_1", ""),
+    height=180,
+    placeholder="Paste a real outreach email here (subject + body)...",
+)
+sample_email_2 = st.text_area(
+    "Sample Email #2",
+    value=settings.get("sample_email_2", ""),
+    height=180,
+    placeholder="Paste another real email here (optional)...",
+)
+sample_email_3 = st.text_area(
+    "Sample Email #3",
+    value=settings.get("sample_email_3", ""),
+    height=180,
+    placeholder="Paste another real email here (optional)...",
+)
+
+st.markdown("---")
+
 # ── DANGER ZONE ────────────────────────────────────────────────────────────────
 
 st.subheader("🚨 Danger Zone")
@@ -105,6 +144,10 @@ if st.button("💾 Save Settings", type="primary", use_container_width=True):
         "pipeline_small": str(pipeline_small),
         "pipeline_medium": str(pipeline_medium),
         "pipeline_large": str(pipeline_large),
+        "brand_voice": brand_voice,
+        "sample_email_1": sample_email_1,
+        "sample_email_2": sample_email_2,
+        "sample_email_3": sample_email_3,
     }
     new_members = [m.strip() for m in members_text.strip().split("\n") if m.strip()]
 

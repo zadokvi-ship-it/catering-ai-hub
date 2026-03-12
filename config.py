@@ -60,6 +60,10 @@ DEFAULT_SETTINGS = {
     "pipeline_medium": "1000",
     "pipeline_large": "2000",
     "theme": "dark",
+    "brand_voice": "",
+    "sample_email_1": "",
+    "sample_email_2": "",
+    "sample_email_3": "",
 }
 
 DECISION_MAKER_ROLES = {

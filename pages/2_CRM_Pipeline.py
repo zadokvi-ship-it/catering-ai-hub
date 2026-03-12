@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from sheets_db import load_leads, update_lead, append_email_draft, delete_lead, load_team_members
+from sheets_db import load_leads, update_lead, append_email_draft, delete_lead, load_team_members, load_settings
 from prep_engine import generate_email_draft
 from config import PIPELINE_STATUSES
 
@@ -34,6 +34,9 @@ if "All" not in assignee_filter:
 
 filtered = filtered.sort_values("priority_score", ascending=False).reset_index(drop=True)
 team_members = load_team_members()
+settings = load_settings()
+brand_voice = settings.get("brand_voice", "")
+sample_emails = [settings.get(f"sample_email_{i}", "") for i in range(1, 4)]
 
 st.markdown(f"Showing **{len(filtered)}** leads")
 st.markdown("---")
@@ -113,7 +116,7 @@ for i, row in filtered.iterrows():
             if st.button("✉️ Draft Outreach Email", key=f"email_{row['place_id']}"):
                 with st.spinner("Generating email draft..."):
                     try:
-                        draft = generate_email_draft(row.to_dict())
+                        draft = generate_email_draft(row.to_dict(), brand_voice=brand_voice, sample_emails=sample_emails)
                         from datetime import datetime as dt
                         email_record = {
                             "place_id": row["place_id"],
