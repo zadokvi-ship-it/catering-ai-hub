@@ -17,7 +17,11 @@ if st.button("🔄 Refresh", key="pipeline_refresh"):
     load_leads.clear()
     st.rerun()
 
-df = load_leads()
+try:
+    df = load_leads()
+except Exception as e:
+    st.error(f"Could not load leads: {e}")
+    st.stop()
 
 if df.empty:
     st.info("No leads yet. Go to **Find Leads** to get started.")
@@ -72,13 +76,16 @@ with list_col:
     for _, row in filtered.iterrows():
         icon = STATUS_ICONS.get(row["status"], "⚪")
         is_selected = st.session_state.get("selected_lead") == row["place_id"]
-
-        label = f"{icon} **{row['organization_name']}**\n{row['category']} · Score {int(row['priority_score'])}"
         btn_type = "primary" if is_selected else "secondary"
+
+        # Compact single-line label
+        score = int(row["priority_score"])
+        name = str(row["organization_name"])[:30]
+        cat = str(row["category"])
+        label = f"{icon} {name}  ·  {cat}  ·  {score}pts"
 
         if st.button(label, key=f"sel_{row['place_id']}", use_container_width=True, type=btn_type):
             st.session_state["selected_lead"] = row["place_id"]
-            # Clear generated content when switching leads
             for k in list(st.session_state.keys()):
                 if k.startswith(("research_", "brief_", "phone_", "email_gen_")):
                     del st.session_state[k]

@@ -25,13 +25,10 @@ def get_client():
 def get_or_create_worksheet(spreadsheet, name, cols):
     try:
         ws = spreadsheet.worksheet(name)
-        # Add any missing columns to existing sheet
+        # If sheet exists but has no headers yet, write them
         existing_headers = ws.row_values(1)
-        for col in cols:
-            if col not in existing_headers:
-                ws.add_cols(1)
-                ws.update_cell(1, len(existing_headers) + 1, col)
-                existing_headers.append(col)
+        if not existing_headers:
+            ws.append_row(cols)
     except gspread.WorksheetNotFound:
         ws = spreadsheet.add_worksheet(title=name, rows=1000, cols=len(cols))
         ws.append_row(cols)
@@ -76,7 +73,13 @@ def append_leads(new_df):
     if new_df.empty:
         return 0
 
-    rows = new_df[LEAD_COLUMNS].fillna("").values.tolist()
+    # Always write in the sheet's actual column order to prevent misalignment
+    sheet_headers = leads_ws.row_values(1)
+    rows = []
+    for _, row in new_df.iterrows():
+        data_row = [str(row.get(col, "") if row.get(col, "") is not None else "") for col in sheet_headers]
+        rows.append(data_row)
+
     leads_ws.append_rows(rows, value_input_option="USER_ENTERED")
     load_leads.clear()
     return len(rows)
