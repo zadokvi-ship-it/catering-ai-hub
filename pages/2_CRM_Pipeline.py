@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from sheets_db import load_leads, update_lead, append_email_draft
+from sheets_db import load_leads, update_lead, append_email_draft, delete_lead
 from prep_engine import generate_email_draft
 from config import PIPELINE_STATUSES
 
@@ -96,26 +96,45 @@ for i, row in filtered.iterrows():
             st.success("Lead updated.")
             st.rerun()
 
-        # ── DRAFT EMAIL BUTTON ─────────────────────────────────────────────────
-        if st.button("✉️ Draft Outreach Email", key=f"email_{row['place_id']}"):
-            with st.spinner("Generating email draft..."):
-                try:
-                    draft = generate_email_draft(row.to_dict())
-                    from datetime import datetime as dt
-                    email_record = {
-                        "place_id": row["place_id"],
-                        "organization_name": row["organization_name"],
-                        "to_name": "",
-                        "to_email": "",
-                        "subject": draft.get("subject", ""),
-                        "body": draft.get("body", ""),
-                        "status": "Pending Review",
-                        "drafted_at": dt.now().strftime("%Y-%m-%d %H:%M"),
-                        "reviewed_by": "",
-                        "reviewed_at": "",
-                        "notes": "",
-                    }
-                    append_email_draft(email_record)
-                    st.success("Draft added to Email Queue. Review it in the Email Queue page.")
-                except Exception as e:
-                    st.error(f"Failed to generate draft: {e}")
+        # ── ACTIONS ────────────────────────────────────────────────────────────
+        action_col1, action_col2 = st.columns([2, 1])
+
+        with action_col1:
+            if st.button("✉️ Draft Outreach Email", key=f"email_{row['place_id']}"):
+                with st.spinner("Generating email draft..."):
+                    try:
+                        draft = generate_email_draft(row.to_dict())
+                        from datetime import datetime as dt
+                        email_record = {
+                            "place_id": row["place_id"],
+                            "organization_name": row["organization_name"],
+                            "to_name": "",
+                            "to_email": "",
+                            "subject": draft.get("subject", ""),
+                            "body": draft.get("body", ""),
+                            "status": "Pending Review",
+                            "drafted_at": dt.now().strftime("%Y-%m-%d %H:%M"),
+                            "reviewed_by": "",
+                            "reviewed_at": "",
+                            "notes": "",
+                        }
+                        append_email_draft(email_record)
+                        st.success("Draft added to Email Queue.")
+                    except Exception as e:
+                        st.error(f"Failed to generate draft: {e}")
+
+        with action_col2:
+            if st.button("🗑️ Delete Lead", key=f"delete_{row['place_id']}", type="secondary"):
+                st.session_state[f"confirm_delete_{row['place_id']}"] = True
+
+            if st.session_state.get(f"confirm_delete_{row['place_id']}"):
+                st.warning("Are you sure? This cannot be undone.")
+                confirm_col1, confirm_col2 = st.columns(2)
+                if confirm_col1.button("Yes, delete", key=f"confirm_{row['place_id']}"):
+                    with st.spinner("Deleting..."):
+                        delete_lead(row["place_id"])
+                    st.success("Lead deleted.")
+                    st.rerun()
+                if confirm_col2.button("Cancel", key=f"cancel_{row['place_id']}"):
+                    st.session_state[f"confirm_delete_{row['place_id']}"] = False
+                    st.rerun()

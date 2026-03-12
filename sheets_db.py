@@ -93,6 +93,19 @@ def update_lead(place_id, updates: dict):
     load_leads.clear()
 
 
+def delete_lead(place_id):
+    leads_ws, _ = get_worksheets()
+    headers = leads_ws.row_values(1)
+    all_values = leads_ws.get_all_values()
+
+    for i, row in enumerate(all_values[1:], start=2):
+        if len(row) > 0 and row[headers.index("place_id")] == str(place_id):
+            leads_ws.delete_rows(i)
+            break
+
+    load_leads.clear()
+
+
 # ── EMAIL QUEUE ────────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=30)
