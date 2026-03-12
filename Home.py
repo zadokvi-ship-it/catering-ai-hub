@@ -1,27 +1,28 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 from sheets_db import load_leads
-from config import PIPELINE_STATUSES
+from lead_engine import calculate_priority
 
-st.set_page_config(page_title="Catering AI Hub", layout="wide", page_icon="🍽️")
+st.set_page_config(page_title="Catering AI", layout="wide", page_icon="🍗")
 
-st.title("🍽️ Catering AI — Command Hub")
-st.caption("Use the sidebar to navigate between modules.")
+st.title("🍗 Chick-fil-A Catering — Sales Hub")
 
-# ── LOAD DATA ──────────────────────────────────────────────────────────────────
-
-if st.button("🔄 Refresh Data"):
+if st.button("🔄 Refresh", key="home_refresh"):
     load_leads.clear()
     st.rerun()
 
 df = load_leads()
 
 if df.empty:
-    st.info("No leads yet. Go to **Lead Generation** to pull your first batch.")
+    st.info("No leads yet. Go to **Find Leads** to get started.")
     st.stop()
 
+# Always recalculate priority from source data
 df["actual_revenue"] = pd.to_numeric(df["actual_revenue"], errors="coerce").fillna(0)
-df["priority_score"] = pd.to_numeric(df["priority_score"], errors="coerce").fillna(0)
+df["rating"] = pd.to_numeric(df["rating"], errors="coerce").fillna(0)
+df["ratings_count"] = pd.to_numeric(df["ratings_count"], errors="coerce").fillna(0)
+df["priority_score"] = df.apply(calculate_priority, axis=1)
 
 # ── METRICS ────────────────────────────────────────────────────────────────────
 
@@ -29,96 +30,57 @@ total = len(df)
 contacted = len(df[df["status"] != "Not Contacted"])
 meetings = len(df[df["status"] == "Meeting Scheduled"])
 proposals = len(df[df["status"] == "Proposal Sent"])
-closed_won = len(df[df["status"] == "Closed Won"])
-closed_lost = len(df[df["status"] == "Closed Lost"])
-total_revenue = df["actual_revenue"].sum()
+won = len(df[df["status"] == "Closed Won"])
+lost = len(df[df["status"] == "Closed Lost"])
+revenue = df["actual_revenue"].sum()
+win_rate = round(won / (won + lost) * 100, 1) if (won + lost) > 0 else 0
 
-win_rate = 0
-if (closed_won + closed_lost) > 0:
-    win_rate = round((closed_won / (closed_won + closed_lost)) * 100, 1)
+def est_val(size):
+    return {"large": 2000, "medium": 1000}.get(str(size).lower(), 500)
 
-open_pipeline = df[df["status"].isin(["Not Contacted", "Contacted", "Meeting Scheduled", "Proposal Sent"])]
+open_df = df[~df["status"].isin(["Closed Won", "Closed Lost"])].copy()
+open_df["est_val"] = open_df["estimated_size"].apply(est_val)
+pipeline_val = open_df["est_val"].sum()
 
-def pipeline_value(size):
-    size = str(size).lower()
-    if size == "large":
-        return 2000
-    elif size == "medium":
-        return 1000
-    return 500
+c1, c2, c3, c4, c5, c6 = st.columns(6)
+c1.metric("Total Leads", total)
+c2.metric("Contacted", contacted)
+c3.metric("Meetings", meetings)
+c4.metric("Proposals", proposals)
+c5.metric("Win Rate", f"{win_rate}%")
+c6.metric("Revenue", f"${revenue:,.0f}")
 
-open_pipeline = open_pipeline.copy()
-open_pipeline["est_value"] = open_pipeline["estimated_size"].apply(pipeline_value)
-pipeline_total = open_pipeline["est_value"].sum()
-projected = round(pipeline_total * (win_rate / 100), 2) if win_rate > 0 else 0
-
-# ── TOP ROW ────────────────────────────────────────────────────────────────────
-
-col1, col2, col3, col4, col5, col6 = st.columns(6)
-col1.metric("Total Leads", total)
-col2.metric("Contacted", contacted)
-col3.metric("Meetings", meetings)
-col4.metric("Proposals", proposals)
-col5.metric("Win Rate", f"{win_rate}%")
-col6.metric("Revenue Closed", f"${total_revenue:,.0f}")
-
+st.markdown(f"**Open Pipeline Value:** ${pipeline_val:,.0f}")
 st.markdown("---")
 
-col7, col8 = st.columns(2)
-col7.metric("Open Pipeline Value", f"${pipeline_total:,.0f}")
-col8.metric("Projected Revenue", f"${projected:,.0f}")
+# ── ACTION PANELS ──────────────────────────────────────────────────────────────
 
-st.markdown("---")
-
-# ── FUNNEL ─────────────────────────────────────────────────────────────────────
-
+today = datetime.today().strftime("%Y-%m-%d")
 left, right = st.columns(2)
 
 with left:
-    st.subheader("📈 Pipeline Funnel")
-    funnel = pd.DataFrame({
-        "Stage": ["Total Leads", "Contacted", "Meetings", "Proposals", "Closed Won"],
-        "Count": [total, contacted, meetings, proposals, closed_won],
-    })
-    st.bar_chart(funnel.set_index("Stage"))
+    st.subheader("🎯 Top Uncontacted Leads")
+    top = df[df["status"] == "Not Contacted"].sort_values("priority_score", ascending=False).head(5)
+    if top.empty:
+        st.success("All leads contacted!")
+    else:
+        for _, row in top.iterrows():
+            st.markdown(f"**{row['organization_name']}** — Score {row['priority_score']} | {row['category']}")
 
 with right:
-    st.subheader("🗂 Leads by Status")
-    status_counts = df["status"].value_counts().reset_index()
-    status_counts.columns = ["Status", "Count"]
-    st.bar_chart(status_counts.set_index("Status"))
+    st.subheader("📅 Follow-Ups Due Today")
+    fu = df[df["next_follow_up_date"] == today]
+    if fu.empty:
+        st.success("No follow-ups due today.")
+    else:
+        for _, row in fu.iterrows():
+            st.markdown(f"**{row['organization_name']}** — {row['status']} | {row['assigned_to'] or 'Unassigned'}")
 
 st.markdown("---")
 
-# ── TODAY'S ACTION PANEL ───────────────────────────────────────────────────────
+# ── PIPELINE CHART ─────────────────────────────────────────────────────────────
 
-st.subheader("🔥 Today's Action Panel")
-
-from datetime import datetime
-today = datetime.today().strftime("%Y-%m-%d")
-
-colA, colB = st.columns(2)
-
-with colA:
-    st.markdown("### 🎯 Top Priority Targets")
-    top = df[df["status"] == "Not Contacted"].sort_values("priority_score", ascending=False).head(5)
-    if top.empty:
-        st.success("All leads contacted.")
-    else:
-        st.dataframe(
-            top[["organization_name", "category", "estimated_size", "priority_score"]],
-            use_container_width=True,
-            hide_index=True,
-        )
-
-with colB:
-    st.markdown("### 📅 Follow-Ups Due Today")
-    followups = df[df["next_follow_up_date"] == today]
-    if followups.empty:
-        st.success("No follow-ups due today.")
-    else:
-        st.dataframe(
-            followups[["organization_name", "status", "assigned_to"]],
-            use_container_width=True,
-            hide_index=True,
-        )
+st.subheader("Pipeline by Stage")
+stage = df["status"].value_counts().reset_index()
+stage.columns = ["Stage", "Count"]
+st.bar_chart(stage.set_index("Stage"))
